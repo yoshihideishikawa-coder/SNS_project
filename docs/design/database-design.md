@@ -37,6 +37,17 @@ erDiagram
         boolean is_manual_spot
     }
     
+    Areas ||--o{ Spots : contains
+    Areas {
+        uuid id PK
+        string name_en
+        string name_jp
+        text description
+        geography bounds "Polygon"
+        string image_url
+        timestamp created_at
+    }
+    
     Spots ||--o{ RouteSpots : referenced_in
     Spots {
         uuid id PK
@@ -47,6 +58,7 @@ erDiagram
         string works_name
         string address
         string image_url
+        uuid area_id FK "Nullable"
         timestamp created_at
     }
     
@@ -68,7 +80,20 @@ erDiagram
 
 ## 3. テーブル定義
 
-### 3.1 `Spots` (聖地マスタ)
+### 3.1 `Areas` (エリアマスタ)
+聖地の地域分類。東京・京都・大阪などのエリアを管理する。
+
+| カラム名 | データ型 | 制約 | 説明 |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | PK, Default `gen_random_uuid()` | エリアの一意ID |
+| `name_en` | `text` | Not Null | 英語のエリア名 |
+| `name_jp` | `text` | Nullable | 日本語のエリア名 |
+| `description` | `text` | Nullable | エリアの説明 |
+| `bounds` | `geography(Polygon, 4326)` | Nullable | エリアの境界ポリゴン（PostGIS型） |
+| `image_url` | `text` | Nullable | エリアの代表画像URL |
+| `created_at` | `timestamptz` | Default `now()` | 作成日時 |
+
+### 3.2 `Spots` (聖地マスタ)
 運営側が管理する、アニメや歴史の聖地スポット情報。
 
 | カラム名 | データ型 | 制約 | 説明 |
@@ -81,9 +106,10 @@ erDiagram
 | `works_name` | `text` | Not Null | 関連する作品名（タグ） |
 | `address` | `text` | Nullable | 住所文字列 |
 | `image_url` | `text` | Nullable | 代表画像のURL |
+| `area_id` | `uuid` | FK (`Areas.id`), Nullable | 所属エリアID |
 | `created_at` | `timestamptz` | Default `now()` | 作成日時 |
 
-### 3.2 `Routes` (投稿ルート)
+### 3.3 `Routes` (投稿ルート)
 ユーザーが作成した巡礼ルートのメタデータ。
 
 | カラム名 | データ型 | 制約 | 説明 |
@@ -98,7 +124,7 @@ erDiagram
 | `created_at` | `timestamptz` | Default `now()` | 作成日時 |
 | `updated_at` | `timestamptz` | Default `now()` | 更新日時 |
 
-### 3.3 `RouteSpots` (ルート内スポット)
+### 3.4 `RouteSpots` (ルート内スポット)
 ルートに含まれる個々の訪問地点。写真と位置情報を保持する。
 
 | カラム名 | データ型 | 制約 | 説明 |
@@ -114,7 +140,7 @@ erDiagram
 | `longitude` | `float` | Not Null | 写真の撮影経度（または指定座標） |
 | `is_manual_spot` | `boolean` | Default `false` | 自動判定ではなく手動追加されたか |
 
-### 3.4 `SavedRoutes` (保存リスト)
+### 3.5 `SavedRoutes` (保存リスト)
 ユーザーが行きたいリストに追加したルート。
 
 | カラム名 | データ型 | 制約 | 説明 |
@@ -123,7 +149,7 @@ erDiagram
 | `route_id` | `uuid` | FK (`Routes.id`), PK Composite | ルートID |
 | `created_at` | `timestamptz` | Default `now()` | 保存日時 |
 
-### 3.5 `UserProfiles` (ユーザープロフィール)
+### 3.6 `UserProfiles` (ユーザープロフィール)
 Clerk等の認証情報とは別に、アプリ内で表示するプロフィール情報。
 
 | カラム名 | データ型 | 制約 | 説明 |
@@ -136,12 +162,17 @@ Clerk等の認証情報とは別に、アプリ内で表示するプロフィー
 | `updated_at` | `timestamptz` | Default `now()` | 更新日時 |
 
 ## 4. インデックス設計
+- `Areas`: `bounds`カラムに対してGISTインデックスを作成（地理空間検索の高速化）。
+  - `CREATE INDEX idx_areas_bounds ON areas USING GIST (bounds);`
 - `Spots`: `location`カラムに対してGISTインデックスを作成（地理空間検索の高速化）。
   - `CREATE INDEX spots_location_idx ON spots USING GIST (location);`
+- `Spots`: `area_id`カラムに対してB-treeインデックスを作成（エリア別フィルタリング高速化）。
+  - `CREATE INDEX idx_spots_area_id ON spots(area_id);`
 - `RouteSpots`: `route_id`に対してB-treeインデックス（ルート表示時の結合高速化）。
 - `Routes`: `created_at` DESC（タイムライン表示用）。
 
 ## 5. RLS (Row Level Security) ポリシー
+- **Areas**: Public Read Only（全ユーザー閲覧可、書き込みは管理者のみ）。
 - **Spots**: Public Read Only（全ユーザー閲覧可、書き込みは管理者のみ）。
 - **Routes**: Public Read（全ユーザー閲覧可）。Create/Update/Deleteは`auth.uid() = user_id`のみ。
 - **RouteSpots**: 親のRoutesと同様。
