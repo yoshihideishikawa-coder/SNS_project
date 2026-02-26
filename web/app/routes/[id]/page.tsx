@@ -1,6 +1,8 @@
 import { MOCK_ROUTES } from '@/app/lib/mock-data';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { getSupabaseUserByClerkId } from '@/lib/supabase/auth-helpers';
 import GoogleMapComponent from '@/components/map';
+import DeleteRouteButton from '@/components/delete-route-button';
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -17,6 +19,7 @@ interface DBSpot {
 
 interface DBRoute {
   id: string;
+  userId: string;
   title: string;
   description: string;
   coverPhotoUrl: string;
@@ -52,6 +55,7 @@ async function getRouteFromDB(id: string): Promise<DBRoute | null> {
 
   return {
     id: route.id,
+    userId: route.user_id,
     title: route.title,
     description: route.description ?? '',
     coverPhotoUrl: route.cover_photo_url ?? '',
@@ -183,6 +187,9 @@ export default async function RouteDetailPage({ params }: { params: Promise<{ id
     notFound();
   }
 
+  const currentUser = await getSupabaseUserByClerkId();
+  const isOwner = currentUser !== null && currentUser.id === route.userId;
+
   const spots = route.spots.map((s) => ({
     lat: s.latitude,
     lng: s.longitude,
@@ -191,9 +198,12 @@ export default async function RouteDetailPage({ params }: { params: Promise<{ id
 
   return (
     <div className="px-4 py-6">
-      <Link href="/" className="text-sm text-gray-500 hover:underline mb-4 inline-block">
-        ← Back to Home
-      </Link>
+      <div className="flex items-center justify-between mb-4">
+        <Link href="/" className="text-sm text-gray-500 hover:underline">
+          ← Back to Home
+        </Link>
+        {isOwner && <DeleteRouteButton routeId={route.id} />}
+      </div>
 
       <div className="bg-white rounded-lg shadow-lg overflow-hidden mb-8">
         {route.coverPhotoUrl && (
