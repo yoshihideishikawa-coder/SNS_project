@@ -9,12 +9,15 @@ import { notFound } from 'next/navigation';
 
 interface DBSpot {
   id: string;
+  spotId: string | null;
   photoUrl: string;
   latitude: number;
   longitude: number;
   comment: string;
   visitedAt: string;
   orderIndex: number;
+  matchedSpotLatitude: number | null;
+  matchedSpotLongitude: number | null;
 }
 
 interface DBRoute {
@@ -29,6 +32,22 @@ interface DBRoute {
   spots: DBSpot[];
 }
 
+function parsePointFromEWKB(hex: string | null | undefined): { latitude: number; longitude: number } | null {
+  if (!hex || hex.length < 42) return null;
+  try {
+    const buf = Buffer.from(hex, 'hex');
+    const isLE = buf[0] === 1;
+    const type = isLE ? buf.readUInt32LE(1) : buf.readUInt32BE(1);
+    const hasSRID = (type & 0x20000000) !== 0;
+    const offset = hasSRID ? 9 : 5;
+    const lng = isLE ? buf.readDoubleLE(offset) : buf.readDoubleBE(offset);
+    const lat = isLE ? buf.readDoubleLE(offset + 8) : buf.readDoubleBE(offset + 8);
+    return { latitude: lat, longitude: lng };
+  } catch {
+    return null;
+  }
+}
+
 async function getRouteFromDB(id: string): Promise<DBRoute | null> {
   const supabase = createServiceRoleClient();
 
@@ -37,7 +56,10 @@ async function getRouteFromDB(id: string): Promise<DBRoute | null> {
     .select(`
       *,
       users!routes_user_id_fkey ( display_name, avatar_url ),
-      route_spots ( * )
+      route_spots (
+        *,
+        spots:spots!route_spots_spot_id_fkey ( location )
+      )
     `)
     .eq('id', id)
     .single();
@@ -67,21 +89,29 @@ async function getRouteFromDB(id: string): Promise<DBRoute | null> {
     },
     spots: sortedSpots.map((rs: {
       id: string;
+      spot_id: string | null;
       photo_url: string;
       latitude: number;
       longitude: number;
       comment: string | null;
       visited_at: string | null;
       order_index: number;
-    }) => ({
-      id: rs.id,
-      photoUrl: rs.photo_url,
-      latitude: rs.latitude,
-      longitude: rs.longitude,
-      comment: rs.comment ?? '',
-      visitedAt: rs.visited_at ?? '',
-      orderIndex: rs.order_index,
-    })),
+      spots: { location: string | null } | null;
+    }) => {
+      const matchedPoint = parsePointFromEWKB(rs.spots?.location);
+      return {
+        id: rs.id,
+        spotId: rs.spot_id,
+        photoUrl: rs.photo_url,
+        latitude: rs.latitude,
+        longitude: rs.longitude,
+        comment: rs.comment ?? '',
+        visitedAt: rs.visited_at ?? '',
+        orderIndex: rs.order_index,
+        matchedSpotLatitude: matchedPoint?.latitude ?? null,
+        matchedSpotLongitude: matchedPoint?.longitude ?? null,
+      };
+    }),
   };
 }
 
@@ -190,10 +220,22 @@ export default async function RouteDetailPage({ params }: { params: Promise<{ id
   const currentUser = await getSupabaseUserByClerkId();
   const isOwner = currentUser !== null && currentUser.id === route.userId;
 
-  const spots = route.spots.map((s) => ({
+  const photoPoints = route.spots.map((s) => ({
     lat: s.latitude,
     lng: s.longitude,
   }));
+  const spots =
+    photoPoints.length === 1 &&
+    route.spots[0]?.matchedSpotLatitude !== null &&
+    route.spots[0]?.matchedSpotLongitude !== null
+      ? [
+          photoPoints[0],
+          {
+            lat: route.spots[0].matchedSpotLatitude,
+            lng: route.spots[0].matchedSpotLongitude,
+          },
+        ]
+      : photoPoints;
   const initialCenter = spots.length > 0 ? spots[0] : undefined;
 
   return (

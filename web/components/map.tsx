@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
-import { APIProvider, Map, AdvancedMarker, Pin, Marker } from '@vis.gl/react-google-maps';
+import { useEffect, useRef, useCallback, useState } from 'react';
+import { APIProvider, Map, AdvancedMarker, Pin, Marker, useMap } from '@vis.gl/react-google-maps';
 
 interface Location {
   lat: number;
@@ -19,15 +19,13 @@ interface MapProps {
 
 function RoutePolyline({
   path,
-  mapRef,
 }: {
   path: Location[];
-  mapRef: React.MutableRefObject<google.maps.Map | null>;
 }) {
+  const map = useMap();
   const polylineRef = useRef<google.maps.Polyline | null>(null);
 
   useEffect(() => {
-    const map = mapRef.current;
     if (!map || path.length < 2) return;
 
     if (polylineRef.current) {
@@ -38,8 +36,9 @@ function RoutePolyline({
       path,
       geodesic: true,
       strokeColor: '#BC002D',
-      strokeOpacity: 0.85,
-      strokeWeight: 3,
+      strokeOpacity: 1,
+      strokeWeight: 5,
+      zIndex: 1000,
       map,
     });
 
@@ -49,29 +48,27 @@ function RoutePolyline({
         polylineRef.current = null;
       }
     };
-  }, [mapRef, path]);
+  }, [map, path]);
 
   return null;
 }
 
 function AutoFitBounds({
   locations,
-  mapRef,
 }: {
   locations: Location[];
-  mapRef: React.MutableRefObject<google.maps.Map | null>;
 }) {
+  const map = useMap();
   const fitted = useRef(false);
 
   useEffect(() => {
-    const map = mapRef.current;
     if (!map || locations.length < 2 || fitted.current) return;
 
     const bounds = new google.maps.LatLngBounds();
     locations.forEach((loc) => bounds.extend(loc));
     map.fitBounds(bounds, { top: 50, right: 50, bottom: 50, left: 50 });
     fitted.current = true;
-  }, [mapRef, locations]);
+  }, [map, locations]);
 
   return null;
 }
@@ -84,17 +81,18 @@ export default function GoogleMapComponent({
   height = '400px',
   labels,
 }: MapProps) {
-  const mapCenter = center || (locations.length > 0 ? locations[0] : { lat: 35.6895, lng: 139.6917 });
-  const mapRef = useRef<google.maps.Map | null>(null);
+  const validLocations = locations.filter(
+    (loc) =>
+      Number.isFinite(loc.lat) &&
+      Number.isFinite(loc.lng) &&
+      !(loc.lat === 0 && loc.lng === 0)
+  );
+  const mapCenter =
+    center ||
+    (validLocations.length > 0 ? validLocations[0] : { lat: 35.6895, lng: 139.6917 });
 
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   const mapId = process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID;
-
-  const onTilesLoaded = useCallback((ev: { map: google.maps.Map }) => {
-    if (!mapRef.current) {
-      mapRef.current = ev.map;
-    }
-  }, []);
 
   if (!apiKey || apiKey === 'YOUR_GOOGLE_MAPS_API_KEY') {
     return (
@@ -117,16 +115,15 @@ export default function GoogleMapComponent({
           streetViewControl={false}
           mapTypeControl={false}
           fullscreenControl={true}
-          onTilesLoaded={onTilesLoaded}
         >
-          {showRoute && locations.length >= 2 && (
+          {showRoute && validLocations.length >= 2 && (
             <>
-              <RoutePolyline path={locations} mapRef={mapRef} />
-              <AutoFitBounds locations={locations} mapRef={mapRef} />
+              <RoutePolyline path={validLocations} />
+              <AutoFitBounds locations={validLocations} />
             </>
           )}
 
-          {locations.map((loc, index) =>
+          {validLocations.map((loc, index) =>
             mapId ? (
               <AdvancedMarker key={index} position={loc}>
                 <Pin background={'#BC002D'} glyphColor={'#fff'} borderColor={'#8B0000'} />
