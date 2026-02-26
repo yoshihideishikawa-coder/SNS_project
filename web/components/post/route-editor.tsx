@@ -15,9 +15,9 @@ export function RouteEditor({ initialPhotos }: RouteEditorProps) {
   const [description, setDescription] = useState('');
   const [photos] = useState(initialPhotos);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const router = useRouter();
 
-  // Sort photos by date automatically
   const sortedPhotos = [...photos].sort((a, b) => {
     return (a.date?.getTime() || 0) - (b.date?.getTime() || 0);
   });
@@ -25,13 +25,13 @@ export function RouteEditor({ initialPhotos }: RouteEditorProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setErrorMessage(null);
 
     try {
       const formData = new FormData();
       formData.append('title', title);
       formData.append('description', description);
 
-      // Append photo metadata and files
       sortedPhotos.forEach((photo, index) => {
         formData.append(`photos[${index}]`, photo.file);
         formData.append(`meta[${index}]`, JSON.stringify({
@@ -47,11 +47,12 @@ export function RouteEditor({ initialPhotos }: RouteEditorProps) {
       if (result.success) {
         router.push(`/routes/${result.data.id}`);
       } else {
-        alert('Failed to create route: ' + result.error);
+        setErrorMessage(result.error ?? 'Failed to create route.');
       }
     } catch (error) {
       console.error('Submission error:', error);
-      alert('An error occurred while creating the route.');
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      setErrorMessage(`An error occurred: ${message}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -101,6 +102,7 @@ export function RouteEditor({ initialPhotos }: RouteEditorProps) {
                   alt={`Photo ${index + 1}`}
                   fill
                   className="object-cover"
+                  unoptimized
                 />
               </div>
               <div className="flex-1 min-w-0">
@@ -112,9 +114,9 @@ export function RouteEditor({ initialPhotos }: RouteEditorProps) {
                     {photo.date?.toLocaleString()}
                   </span>
                 </div>
-                {photo.latitude && photo.longitude ? (
+                {typeof photo.latitude === 'number' && typeof photo.longitude === 'number' ? (
                   <p className="text-xs text-green-600 flex items-center gap-1">
-                    📍 Location found ({photo.latitude.toFixed(4)}, {photo.longitude.toFixed(4)})
+                    📍 Location found ({Number(photo.latitude).toFixed(4)}, {Number(photo.longitude).toFixed(4)})
                   </p>
                 ) : (
                   <p className="text-xs text-orange-500 flex items-center gap-1">
@@ -132,6 +134,12 @@ export function RouteEditor({ initialPhotos }: RouteEditorProps) {
           ))}
         </div>
       </div>
+
+      {errorMessage && (
+        <div className="rounded-md bg-red-50 p-4">
+          <p className="text-sm text-red-700">{errorMessage}</p>
+        </div>
+      )}
 
       <div className="flex justify-end pt-4">
         <button

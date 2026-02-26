@@ -29,15 +29,20 @@ interface DBRoute {
 async function getRouteFromDB(id: string): Promise<DBRoute | null> {
   const supabase = createServiceRoleClient();
 
-  const { data: route } = await supabase
+  const { data: route, error } = await supabase
     .from('routes')
     .select(`
       *,
-      users ( display_name, avatar_url ),
+      users!routes_user_id_fkey ( display_name, avatar_url ),
       route_spots ( * )
     `)
     .eq('id', id)
     .single();
+
+  if (error) {
+    console.error('getRouteFromDB error:', error);
+    return null;
+  }
 
   if (!route) return null;
 

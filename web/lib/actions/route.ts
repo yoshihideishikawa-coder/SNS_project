@@ -55,7 +55,7 @@ export async function createRoute(formData: FormData) {
       let photoUrl = '';
       if (uploadError) {
         console.error('Upload error:', uploadError);
-        photoUrl = 'https://images.unsplash.com/photo-1528360983277-13d9b152c6d1';
+        photoUrl = 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400';
       } else {
         const {
           data: { publicUrl },
