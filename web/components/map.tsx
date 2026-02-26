@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { APIProvider, Map, AdvancedMarker, Pin, Marker, useMap } from '@vis.gl/react-google-maps';
 
 interface Location {
@@ -17,35 +17,76 @@ interface MapProps {
   labels?: string[];
 }
 
-function RoutePolyline({
+function RouteDirections({
   path,
 }: {
   path: Location[];
 }) {
   const map = useMap();
-  const polylineRef = useRef<google.maps.Polyline | null>(null);
+  const directionsRendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
+  const fallbackPolylineRef = useRef<google.maps.Polyline | null>(null);
 
   useEffect(() => {
     if (!map || path.length < 2) return;
 
-    if (polylineRef.current) {
-      polylineRef.current.setMap(null);
+    if (!directionsRendererRef.current) {
+      directionsRendererRef.current = new google.maps.DirectionsRenderer({
+        suppressMarkers: true,
+        preserveViewport: true,
+        polylineOptions: {
+          strokeColor: '#BC002D',
+          strokeOpacity: 1,
+          strokeWeight: 5,
+          zIndex: 1000,
+        },
+      });
     }
 
-    polylineRef.current = new google.maps.Polyline({
-      path,
-      geodesic: true,
-      strokeColor: '#BC002D',
-      strokeOpacity: 1,
-      strokeWeight: 5,
-      zIndex: 1000,
-      map,
-    });
+    directionsRendererRef.current.setMap(map);
+
+    const directionsService = new google.maps.DirectionsService();
+    const waypoints = path.slice(1, -1).map((point) => ({
+      location: point,
+      stopover: true,
+    }));
+    directionsService.route(
+      {
+        origin: path[0],
+        destination: path[path.length - 1],
+        waypoints,
+        optimizeWaypoints: false,
+        travelMode: google.maps.TravelMode.WALKING,
+        provideRouteAlternatives: false,
+      },
+      (response, status) => {
+        if (status === google.maps.DirectionsStatus.OK && response) {
+          fallbackPolylineRef.current?.setMap(null);
+          fallbackPolylineRef.current = null;
+          directionsRendererRef.current?.setDirections(response);
+          return;
+        }
+
+        console.warn('[RouteDirections] failed to fetch directions:', status);
+        // 経路APIが失敗した場合は常に直線フォールバックして線を消さない
+        fallbackPolylineRef.current?.setMap(null);
+        fallbackPolylineRef.current = new google.maps.Polyline({
+          path,
+          geodesic: true,
+          strokeColor: '#BC002D',
+          strokeOpacity: 1,
+          strokeWeight: 5,
+          zIndex: 1000,
+          map,
+        });
+      }
+    );
 
     return () => {
-      if (polylineRef.current) {
-        polylineRef.current.setMap(null);
-        polylineRef.current = null;
+      fallbackPolylineRef.current?.setMap(null);
+      fallbackPolylineRef.current = null;
+      if (directionsRendererRef.current) {
+        directionsRendererRef.current.setMap(null);
+        directionsRendererRef.current = null;
       }
     };
   }, [map, path]);
@@ -103,7 +144,7 @@ export default function GoogleMapComponent({
   }
 
   return (
-    <APIProvider apiKey={apiKey}>
+    <APIProvider apiKey={apiKey} libraries={['routes']}>
       <div className="w-full rounded-lg overflow-hidden shadow-md" style={{ height }}>
         <Map
           defaultCenter={mapCenter}
@@ -118,7 +159,7 @@ export default function GoogleMapComponent({
         >
           {showRoute && validLocations.length >= 2 && (
             <>
-              <RoutePolyline path={validLocations} />
+              <RouteDirections path={validLocations} />
               <AutoFitBounds locations={validLocations} />
             </>
           )}
