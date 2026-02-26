@@ -137,7 +137,7 @@ export default async function RouteDetailPage({ params }: { params: Promise<{ id
         <div className="space-y-6">
           <div>
             <h2 className="text-lg font-bold mb-3">Route Map</h2>
-            <GoogleMapComponent locations={spots} center={initialCenter} zoom={13} />
+            <GoogleMapComponent locations={spots} center={initialCenter} zoom={13} showRoute />
           </div>
 
           <div>
@@ -244,7 +244,7 @@ export default async function RouteDetailPage({ params }: { params: Promise<{ id
         {spots.length > 0 && (
           <div>
             <h2 className="text-lg font-bold mb-3">Route Map</h2>
-            <GoogleMapComponent locations={spots} center={initialCenter} zoom={13} />
+            <GoogleMapComponent locations={spots} center={initialCenter} zoom={13} showRoute />
           </div>
         )}
 

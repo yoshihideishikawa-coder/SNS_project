@@ -5,7 +5,7 @@ import {
   UserButton 
 } from '@clerk/nextjs'
 import Link from 'next/link'
-import { PlusCircle } from 'lucide-react'
+import { PlusCircle, Database } from 'lucide-react'
 
 export function Header() {
   const { isLoaded, userId } = useAuth()
@@ -22,6 +22,14 @@ export function Header() {
           <div className="flex items-center gap-3">
             {isLoaded && isSignedIn && (
               <>
+                <Link
+                  href="/admin"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                  title="聖地マスタ管理"
+                >
+                  <Database size={15} />
+                  <span className="hidden sm:inline">管理</span>
+                </Link>
                 <Link 
                   href="/post" 
                   className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-black text-white rounded-lg hover:bg-black/80 transition-colors"

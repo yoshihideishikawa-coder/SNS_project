@@ -68,12 +68,14 @@ export async function createRoute(formData: FormData) {
 
       await supabase.from('route_spots').insert({
         route_id: route.id,
+        spot_id: meta.spotId || null,
         order_index: meta.orderIndex,
         visited_at: meta.visitedAt,
         photo_url: photoUrl,
         latitude: meta.latitude || 0,
         longitude: meta.longitude || 0,
-        is_manual_spot: false,
+        comment: meta.comment || null,
+        is_manual_spot: !meta.spotId,
       });
     }
 

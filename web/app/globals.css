@@ -100,6 +100,20 @@ body {
   }
 }
 
+/* Admin shell: full-width layout for admin pages */
+.admin-shell {
+  width: 100%;
+  max-width: 100%;
+  min-height: 100dvh;
+  background: #f9fafb;
+}
+
+@media (prefers-color-scheme: dark) {
+  .admin-shell {
+    background: #030712;
+  }
+}
+
 /* Utilities */
 .text-balance {
   text-wrap: balance;

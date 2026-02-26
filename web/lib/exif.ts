@@ -1,5 +1,16 @@
 import exifr from 'exifr';
 
+export interface MatchedSpotInfo {
+  id: string;
+  name_en: string;
+  name_jp: string | null;
+  works_name: string;
+  latitude: number;
+  longitude: number;
+  distance_m: number;
+  area_name?: string;
+}
+
 export interface PhotoData {
   file: File;
   previewUrl: string;
@@ -7,6 +18,7 @@ export interface PhotoData {
   longitude?: number;
   date?: Date;
   locationName?: string;
+  matchedSpot?: MatchedSpotInfo | null;
 }
 
 export async function extractPhotoData(file: File): Promise<PhotoData> {
